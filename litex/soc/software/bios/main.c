@@ -313,6 +313,9 @@ static void help(void)
 	puts("rcsr       - read processor CSR");
 	puts("wcsr       - write processor CSR");
 #endif
+#ifdef CSR_CTRL_BASE
+	puts("reboot     - reset processor");
+#endif
 #ifdef CSR_ETHMAC_BASE
 	puts("netboot    - boot via TFTP");
 #endif
@@ -344,6 +347,13 @@ static char *get_token(char **str)
 	return d;
 }
 
+#ifdef CSR_CTRL_BASE
+static void reboot(void)
+{
+	ctrl_reset_write(1);
+}
+#endif
+
 static void do_command(char *c)
 {
 	char *token;
@@ -359,7 +369,9 @@ static void do_command(char *c)
 #ifdef L2_SIZE
 	else if(strcmp(token, "flushl2") == 0) flush_l2_cache();
 #endif
-
+#ifdef CSR_CTRL_BASE
+	else if(strcmp(token, "reboot") == 0) reboot();
+#endif
 #ifdef FLASH_BOOT_ADDRESS
 	else if(strcmp(token, "flashboot") == 0) flashboot();
 #endif
@@ -401,7 +413,7 @@ static void do_command(char *c)
 		printf("Command not found\n");
 }
 
-extern unsigned int _ftext, _erodata;
+extern unsigned int _ftext, _edata;
 
 static void crcbios(void)
 {
@@ -411,14 +423,14 @@ static void crcbios(void)
 	unsigned int actual_crc;
 
 	/*
-	 * _erodata is located right after the end of the flat
+	 * _edata is located right after the end of the flat
 	 * binary image. The CRC tool writes the 32-bit CRC here.
-	 * We also use the address of _erodata to know the length
+	 * We also use the address of _edata to know the length
 	 * of our code.
 	 */
 	offset_bios = (unsigned int)&_ftext;
-	expected_crc = _erodata;
-	length = (unsigned int)&_erodata - offset_bios;
+	expected_crc = _edata;
+	length = (unsigned int)&_edata - offset_bios;
 	actual_crc = crc32((unsigned char *)offset_bios, length);
 	if(expected_crc == actual_crc)
 		printf("BIOS CRC passed (%08x)\n", actual_crc);
