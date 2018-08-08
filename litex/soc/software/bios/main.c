@@ -463,7 +463,10 @@ static void readstr(char *s, int size)
 
 static void boot_sequence(void)
 {
+  int boot_retries = 0;
+
 	if(serialboot()) {
+	  while( boot_retries < 30 ) {  // try pretty hard because each try is quick...
 #ifdef FLASH_BOOT_ADDRESS
 		flashboot();
 #endif
@@ -476,14 +479,18 @@ static void boot_sequence(void)
 #endif
 		netboot();
 #endif
-		printf("No boot medium found\n");
+		// re-init SDR in case boot failure is due to a bad timing lock
+		sdrinit();
+		boot_retries++;
+	  }
+	  printf("No boot medium found\n");
 	}
 }
 
 int main(int i, char **c)
 {
 	char buffer[64];
-	int sdr_ok;
+	int sdr_ok = 0;
 
 	irq_setmask(0);
 	irq_setie(1);
@@ -515,11 +522,18 @@ int main(int i, char **c)
 #ifdef CSR_ETHMAC_BASE
 	eth_init();
 #endif
+
+	int sdr_retries = 0;
+
+	// in case of transient initialization errors, attempt initialization up to three times
+	while( (sdr_retries < 3) && !sdr_ok ) {
 #ifdef CSR_SDRAM_BASE
-	sdr_ok = sdrinit();
+	  sdr_ok = sdrinit();
 #else
-	sdr_ok = 1;
+	  sdr_ok = 1;
 #endif
+	  sdr_retries++;
+	}
 	if(sdr_ok)
 		boot_sequence();
 	else
