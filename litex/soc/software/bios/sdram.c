@@ -751,7 +751,7 @@ int sdrlevel(void)
 	/* check for optimal read leveling window */
 	for(i=0; i<ERR_DDRPHY_BITSLIP; i++) {
 		/* scan */
-		if (read_level_scan(1))
+		if (read_level_scan(0))
 			break;
 		if (i == ERR_DDRPHY_BITSLIP-1)
 			return 0;
