@@ -190,9 +190,26 @@ const unsigned int sdram_dfii_pix_rddata_addr[{n}] = {{
             mr2 |= rtt_wr << 9
             return mr2
 
+        z_to_rttnom = {
+            'disabled' : 0,
+            '60ohm'    : 1,
+            '120ohm'   : 2,
+            '40ohm'    : 3,
+            '20ohm'    : 4,
+            '30ohm'    : 5
+        }
+        z_to_output_drive_strength = {
+            '40ohm' : 0,
+            '34ohm' : 1,
+        }
+        z_to_dynamic_odt = {
+            'disabled' : 0,
+            '60ohm'    : 1,
+            '120ohm'   : 2,
+        }
         mr0 = format_mr0(bl, cl, 14, 1)  # wr=8 FIXME: this should be ceiling(tWR/tCK)
-        mr1 = format_mr1(0, 3) # 40 ohm / 40 ohm
-        mr2 = format_mr2(sdram_phy_settings.cwl, 1)  # Rtt(WR) RZQ/4
+        mr1 = format_mr1(z_to_output_drive_strength[sdram_phy_settings.drive_strength], z_to_rttnom[sdram_phy_settings.rtt_nom])
+        mr2 = format_mr2(sdram_phy_settings.cwl, z_to_dynamic_odt[sdram_phy_settings.dynamic_odt])
         mr3 = 0
 
         init_sequence = [
