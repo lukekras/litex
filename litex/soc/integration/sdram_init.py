@@ -190,9 +190,9 @@ const unsigned int sdram_dfii_pix_rddata_addr[{n}] = {{
             mr2 |= rtt_wr << 9
             return mr2
 
-        mr0 = format_mr0(bl, cl, 8, 1)  # wr=8 FIXME: this should be ceiling(tWR/tCK)
-        mr1 = format_mr1(1, 1)  # Output Drive Strength RZQ/7 (34 ohm) / Rtt RZQ/4 (60 ohm)
-        mr2 = format_mr2(sdram_phy_settings.cwl, 2)  # Rtt(WR) RZQ/4
+        mr0 = format_mr0(bl, cl, 14, 1)  # wr=8 FIXME: this should be ceiling(tWR/tCK)
+        mr1 = format_mr1(0, 3) # 40 ohm / 40 ohm
+        mr2 = format_mr2(sdram_phy_settings.cwl, 1)  # Rtt(WR) RZQ/4
         mr3 = 0
 
         init_sequence = [

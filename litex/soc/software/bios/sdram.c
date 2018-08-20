@@ -209,7 +209,8 @@ void sdrwr(char *startaddr)
 
 void sdrwlon(void)
 {
-	sdram_dfii_pi0_address_write(DDR3_MR1 | (1 << 7));
+	printf("Qoff enabled\n");
+        sdram_dfii_pi0_address_write(DDR3_MR1 | (1 << 7) | (1 << 12));  // add 1 << 12 to flip Qoff
 	sdram_dfii_pi0_baddress_write(1);
 	command_p0(DFII_COMMAND_RAS|DFII_COMMAND_CAS|DFII_COMMAND_WE|DFII_COMMAND_CS);
 	ddrphy_wlevel_en_write(1);
@@ -543,8 +544,9 @@ static void read_level(void)
 		printf("%d:%02d-%02d  ", DFII_PIX_DATA_SIZE/2-i-1, delay_min, delay_max);
 
 		/* Set delay to the middle */
+		printf("Set %d | ", 1 ); //(delay_min + delay_max) / 2);
 		ddrphy_rdly_dq_rst_write(1);
-		for(j=0;j<(delay_min+delay_max)/2;j++)
+		for(j=0;j< 1 /*(delay_min+delay_max) /2*/;j++)
 			ddrphy_rdly_dq_inc_write(1);
 	}
 
