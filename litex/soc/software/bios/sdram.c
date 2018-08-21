@@ -542,7 +542,7 @@ static void read_level(void)
 
 		printf("%d:%02d-%02d  ", DFII_PIX_DATA_SIZE/2-i-1, delay_min, delay_max);
 
-		/* Set delay to the middle */
+		/* Set delay to the middle */ ///// TODO: maybe consider tweaking to the left if no 0's found on the left
 		ddrphy_rdly_dq_rst_write(1);
 		for(j=0;j<(delay_min+delay_max)/2;j++)
 			ddrphy_rdly_dq_inc_write(1);
