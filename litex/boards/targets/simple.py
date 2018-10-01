@@ -14,15 +14,15 @@ from liteeth.core.mac import LiteEthMAC
 
 class BaseSoC(SoCCore):
     def __init__(self, platform, **kwargs):
-        SoCCore.__init__(self, platform,
-            clk_freq=int((1/(platform.default_clk_period))*1000000000),
+        sys_clk_freq = int(1e9/platform.default_clk_period)
+        SoCCore.__init__(self, platform, clk_freq=sys_clk_freq,
             integrated_rom_size=0x8000,
             integrated_main_ram_size=16*1024,
             **kwargs)
         self.submodules.crg = CRG(platform.request(platform.default_clk_name))
 
 
-class MiniSoC(BaseSoC):
+class EthernetSoC(BaseSoC):
     csr_map = {
         "ethphy": 20,
         "ethmac": 21
@@ -45,8 +45,7 @@ class MiniSoC(BaseSoC):
         self.submodules.ethphy = LiteEthPHY(platform.request("eth_clocks"),
                                             platform.request("eth"))
         self.submodules.ethmac = LiteEthMAC(phy=self.ethphy, dw=32,
-                                            interface="wishbone",
-                                            with_preamble_crc=False)
+            interface="wishbone", endianness=self.cpu.endianness, with_preamble_crc=False)
         self.add_wb_slave(mem_decoder(self.mem_map["ethmac"]), self.ethmac.bus)
         self.add_memory_region("ethmac", self.mem_map["ethmac"] | self.shadow_base, 0x2000)
 
@@ -63,7 +62,7 @@ def main():
 
     platform_module = importlib.import_module(args.platform)
     platform = platform_module.Platform()
-    cls = MiniSoC if args.with_ethernet else BaseSoC
+    cls = EthernetSoC if args.with_ethernet else BaseSoC
     soc = cls(platform, **soc_core_argdict(args))
     builder = Builder(soc, **builder_argdict(args))
     builder.build()

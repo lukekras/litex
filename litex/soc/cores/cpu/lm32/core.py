@@ -6,8 +6,14 @@ from litex.soc.interconnect import wishbone
 
 
 class LM32(Module):
+    name = "lm32"
+    endianness = "big"
+    gcc_triple = "lm32-elf"
+    gcc_flags = "-mbarrel-shift-enabled -mmultiply-enabled -mdivide-enabled -msign-extend-enabled"
+    linker_output_format = "elf32-lm32"
+
     def __init__(self, platform, eba_reset, variant=None):
-        assert variant in (None, "minimal"), "Unsupported variant %s" % variant
+        assert variant in (None, "lite", "minimal"), "Unsupported variant %s" % variant
         self.reset = Signal()
         self.ibus = i = wishbone.Interface()
         self.dbus = d = wishbone.Interface()
@@ -84,5 +90,7 @@ class LM32(Module):
                 "lm32_dtlb.v")
         if variant == "minimal":
             platform.add_verilog_include_path(os.path.join(vdir, "config_minimal"))
+        elif variant == "lite":
+            platform.add_verilog_include_path(os.path.join(vdir, "config_lite"))
         else:
             platform.add_verilog_include_path(os.path.join(vdir, "config"))

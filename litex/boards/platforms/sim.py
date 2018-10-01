@@ -30,6 +30,18 @@ _io = [
         Subsignal("sink_ready", SimPins(1)),
         Subsignal("sink_data", SimPins(8)),
     ),
+    ("eth_clocks", 1,
+        Subsignal("none", SimPins(1)),
+    ),
+    ("eth", 1,
+        Subsignal("source_valid", SimPins(1)),
+        Subsignal("source_ready", SimPins(1)),
+        Subsignal("source_data", SimPins(8)),
+
+        Subsignal("sink_valid", SimPins(1)),
+        Subsignal("sink_ready", SimPins(1)),
+        Subsignal("sink_data", SimPins(8)),
+    ),
     ("vga", 0,
         Subsignal("de", SimPins(1)),
         Subsignal("hsync", SimPins(1)),
@@ -42,7 +54,6 @@ _io = [
 
 
 class Platform(SimPlatform):
-    is_sim = True
     default_clk_name = "sys_clk"
     default_clk_period = 1000  # on modern computers simulate at ~ 1MHz
 

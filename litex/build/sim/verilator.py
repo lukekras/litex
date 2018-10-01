@@ -103,13 +103,13 @@ def _generate_sim_config(config):
     tools.write_to_file("sim_config.js", content)
 
 
-def _build_sim(platform, build_name, verbose):
+def _build_sim(platform, build_name, threads, verbose):
     makefile = os.path.join(core_directory, 'Makefile')
     build_script_contents = """\
 rm -rf obj_dir/
-make -C . -f {}
+make -C . -f {} THREADS={}
 mkdir -p modules && cp obj_dir/*.so modules
-""".format(makefile)
+""".format(makefile, threads)
     build_script_file = "build_" + build_name + ".sh"
     tools.write_to_file(build_script_file, build_script_contents, force_unix=True)
 
@@ -126,10 +126,9 @@ mkdir -p modules && cp obj_dir/*.so modules
         print(output)
 
 
-def _run_sim(build_name):
-    run_script_contents = """\
-sudo obj_dir/Vdut
-"""
+def _run_sim(build_name, as_root=False):
+    run_script_contents = "sudo " if as_root else ""
+    run_script_contents += "obj_dir/Vdut"
     run_script_file = "run_" + build_name + ".sh"
     tools.write_to_file(run_script_file, run_script_contents, force_unix=True)
     if sys.platform != "win32":
@@ -146,35 +145,40 @@ sudo obj_dir/Vdut
 
 class SimVerilatorToolchain:
     def build(self, platform, fragment, build_dir="build", build_name="dut",
-            toolchain_path=None, serial="console", run=True, verbose=True,
-            sim_config=None):
+            toolchain_path=None, serial="console", build=True, run=True, threads=1,
+            verbose=True, sim_config=None):
+
         os.makedirs(build_dir, exist_ok=True)
         os.chdir(build_dir)
 
-        if not isinstance(fragment, _Fragment):
-            fragment = fragment.get_fragment()
-        platform.finalize(fragment)
+        if build:
+            if not isinstance(fragment, _Fragment):
+                fragment = fragment.get_fragment()
+            platform.finalize(fragment)
 
-        v_output = platform.get_verilog(fragment, name=build_name)
-        named_sc, named_pc = platform.resolve_signals(v_output.ns)
-        v_output.write(build_name + ".v")
+            v_output = platform.get_verilog(fragment,
+                name=build_name, dummy_signal=False, regular_comb=False, blocking_assign=True)
+            named_sc, named_pc = platform.resolve_signals(v_output.ns)
+            v_output.write(build_name + ".v")
 
-        include_paths = []
-        for source in platform.sources:
-            path = os.path.dirname(source[0]).replace("\\", "\/")
-            if path not in include_paths:
-                include_paths.append(path)
-        include_paths += platform.verilog_include_paths
-        _generate_sim_h(platform)
-        _generate_sim_cpp(platform)
-        _generate_sim_variables(include_paths)
-        if sim_config:
-            _generate_sim_config(sim_config)
-        _build_sim(platform, build_name, verbose)
+            include_paths = []
+            for source in platform.sources:
+                path = os.path.dirname(source[0]).replace("\\", "\/")
+                if path not in include_paths:
+                    include_paths.append(path)
+            include_paths += platform.verilog_include_paths
+            _generate_sim_h(platform)
+            _generate_sim_cpp(platform)
+            _generate_sim_variables(include_paths)
+            if sim_config:
+                _generate_sim_config(sim_config)
+
+            _build_sim(platform, build_name, threads, verbose)
 
         if run:
-            _run_sim(build_name)
+            _run_sim(build_name, as_root=sim_config.has_module("ethernet"))
 
-        os.chdir("..")
+        os.chdir("../../")
 
-        return v_output.ns
+        if build:
+            return v_output.ns

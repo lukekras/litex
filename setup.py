@@ -36,9 +36,11 @@ setup(
     include_package_data=True,
     entry_points={
         "console_scripts": [
-            "litex_term=litex.soc.tools.litex_term:main",
             "mkmscimg=litex.soc.tools.mkmscimg:main",
-            "litex_server=litex.soc.tools.remote.litex_server:main"
+            "litex_term=litex.soc.tools.litex_term:main",
+            "litex_server=litex.soc.tools.remote.litex_server:main",
+            "litex_sim=litex.boards.targets.sim:main",
+            "litex_simple=litex.boards.targets.simple:main",
         ],
     },
 )

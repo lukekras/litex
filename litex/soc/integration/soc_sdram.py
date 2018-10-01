@@ -15,8 +15,12 @@ __all__ = ["SoCSDRAM", "soc_sdram_args", "soc_sdram_argdict"]
 
 class ControllerInjector(Module, AutoCSR):
     def __init__(self, phy, geom_settings, timing_settings, **kwargs):
-        self.submodules.dfii = dfii.DFIInjector(geom_settings.addressbits, geom_settings.bankbits,
-                phy.settings.dfi_databits, phy.settings.nphases)
+        self.submodules.dfii = dfii.DFIInjector(
+            geom_settings.addressbits,
+            geom_settings.bankbits,
+            phy.settings.nranks,
+            phy.settings.dfi_databits,
+            phy.settings.nphases)
         self.comb += self.dfii.master.connect(phy.dfi)
 
         self.submodules.controller = controller = core.LiteDRAMController(
@@ -72,10 +76,9 @@ class SoCSDRAM(SoCCore):
 
         if self.l2_size:
             port = self.sdram.crossbar.get_port()
-            l2_cache = wishbone.Cache(self.l2_size//4, self._wb_sdram, wishbone.Interface(port.data_width))
-            # XXX Vivado ->2015.1 workaround, Vivado is not able to map correctly our L2 cache.
-            # Issue is reported to Xilinx and should be fixed in next releases (2015.2?).
-            # Remove this workaround when fixed by Xilinx.
+            l2_cache = wishbone.Cache(self.l2_size//4, self._wb_sdram, wishbone.Interface(port.dw))
+            # XXX Vivado ->2018.2 workaround, Vivado is not able to map correctly our L2 cache.
+            # Issue is reported to Xilinx, Remove this if ever fixed by Xilinx...
             from litex.build.xilinx.vivado import XilinxVivadoToolchain
             if isinstance(self.platform.toolchain, XilinxVivadoToolchain):
                 from migen.fhdl.simplify import FullMemoryWE
