@@ -1,3 +1,15 @@
+Note for NeTV2 Alphamax integration: there is currently an update to Vexriscv that
+causes the firmware to hang on boot. When pulling the latest Litex, you will need
+to revert out the verxriscv update by doing the following:
+
+# revert the verilog
+cd litex/soc/cores/cpu/vexriscv/verilog
+git checkout 395c5ee2868ffbe36db290a4a4ec0eabc0f5c2b5
+
+# revert the .h file changes
+cd ../../../software/include/base
+git checkout  a760322fbdbdcb0e4e38b0c78f88e126b2f76737 csr-defs.h
+
                        __   _ __      _  __
                       / /  (_) /____ | |/_/
                      / /__/ / __/ -_)>  <
