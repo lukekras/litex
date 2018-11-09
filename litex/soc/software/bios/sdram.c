@@ -509,9 +509,9 @@ static void read_level(void)
 		printf("%d:%02d-%02d  ", DFII_PIX_DATA_SIZE/2-i-1, delay_min, delay_max);
 
 		/* Set delay to the middle */
-		printf("Set %d | ", 1 ); //(delay_min + delay_max) / 2);
+		printf("Set %d | ", (delay_min + delay_max) / 2); //(delay_min + delay_max) / 2);
 		ddrphy_rdly_dq_rst_write(1);
-		for(j=0;j< 1 /*(delay_min+delay_max) /2*/;j++)
+		for(j=0;j< (delay_min+delay_max) /2;j++)
 			ddrphy_rdly_dq_inc_write(1);
 	}
 
