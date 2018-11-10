@@ -751,6 +751,111 @@ int sdrlevel(int silent)
 }
 #endif
 
+static void alt_init_sequence(int mr1, int mr2) {
+	/* Release reset */
+	sdram_dfii_pi0_address_write(0x0);
+	sdram_dfii_pi0_baddress_write(0);
+	sdram_dfii_control_write(DFII_CONTROL_ODT|DFII_CONTROL_RESET_N);
+	cdelay(50000);
+
+	/* Bring CKE high */
+	sdram_dfii_pi0_address_write(0x0);
+	sdram_dfii_pi0_baddress_write(0);
+	sdram_dfii_control_write(DFII_CONTROL_CKE|DFII_CONTROL_ODT|DFII_CONTROL_RESET_N);
+	cdelay(10000);
+
+	/* Load Mode Register 2, CWL=5 */
+	sdram_dfii_pi0_address_write(mr2);
+	sdram_dfii_pi0_baddress_write(2);
+	command_p0(DFII_COMMAND_RAS|DFII_COMMAND_CAS|DFII_COMMAND_WE|DFII_COMMAND_CS);
+
+	/* Load Mode Register 3 */
+	sdram_dfii_pi0_address_write(0x0);
+	sdram_dfii_pi0_baddress_write(3);
+	command_p0(DFII_COMMAND_RAS|DFII_COMMAND_CAS|DFII_COMMAND_WE|DFII_COMMAND_CS);
+
+	/* Load Mode Register 1 */
+	sdram_dfii_pi0_address_write(mr1);
+	sdram_dfii_pi0_baddress_write(1);
+	command_p0(DFII_COMMAND_RAS|DFII_COMMAND_CAS|DFII_COMMAND_WE|DFII_COMMAND_CS);
+
+	/* Load Mode Register 0, CL=6, BL=8 */
+	sdram_dfii_pi0_address_write(0xd20);
+	sdram_dfii_pi0_baddress_write(0);
+	command_p0(DFII_COMMAND_RAS|DFII_COMMAND_CAS|DFII_COMMAND_WE|DFII_COMMAND_CS);
+	cdelay(200);
+
+	/* ZQ Calibration */
+	sdram_dfii_pi0_address_write(0x400);
+	sdram_dfii_pi0_baddress_write(0);
+	command_p0(DFII_COMMAND_WE|DFII_COMMAND_CS);
+	cdelay(200);
+}
+
+int alt_sdrinit(char *rtt_nom_str, char *rtt_wr_str, char *ron_str) {
+	printf("Initializing SDRAM with parameters...\n");
+
+	int rtt_nom = strtoul(rtt_nom_str, NULL, 0);
+	int rtt_wr = strtoul(rtt_wr_str, NULL, 0);
+	int ron = strtoul(ron_str, NULL, 0);
+
+	printf( "got rtt_nom %d rtt_wr %d, ron %d\n", rtt_nom, rtt_wr, ron );
+	// 1111 1101 1001 1001 = 0xFD99
+	int mr1 = 0x44 & 0xFD99;
+	// 1111 1001 1111 1111 = 0xF9FF
+	int mr2 = 0x0 & 0xF9FF;
+
+	if( ron == 34 ) {
+	  mr1 |= (1 << 1);
+	}
+	// 40 ohm is 00, and others are reserved
+	
+	if( rtt_nom == 60 ) {
+	  mr1 |= (1 << 2);
+	} else if( rtt_nom == 120 ) {
+	  mr1 |= (1 << 6);
+	} else if( rtt_nom == 40 ) {
+	  mr1 |= (1 << 2);
+	  mr1 |= (1 << 6);
+	} else if( rtt_nom == 20 ) {
+	  mr1 |= (1 << 9);
+	} else if( rtt_nom == 30 ) {
+	  mr1 |= (1 << 9);
+	  mr1 |= (1 << 2);
+	}
+	// else disabled
+
+	if( rtt_wr == 60 ) {
+	  mr2 |= (1 << 9);
+	} else if( rtt_wr == 120 ) {
+	  mr2 |= (1 << 10);
+	}
+	// else off
+
+	printf( "setting mr1: %x, mr2 %x\n", mr1, mr2 );
+	alt_init_sequence(mr1, mr2);
+	
+#ifdef CSR_DDRPHY_BASE
+#if CSR_DDRPHY_EN_VTC_ADDR
+	ddrphy_en_vtc_write(0);
+#endif
+	sdrlevel(1);
+#if CSR_DDRPHY_EN_VTC_ADDR
+	ddrphy_en_vtc_write(1);
+#endif
+#endif
+	sdrhw();
+	if(!memtest()) {
+#ifdef CSR_DDRPHY_BASE
+		/* show scans */
+		sdrlevel(0);
+#endif
+		return 0;
+	}
+
+	return 1;
+}
+
 int sdrinit(void)
 {
 	printf("Initializing SDRAM...\n");
