@@ -541,6 +541,16 @@ static unsigned short seed_to_data_16(unsigned short seed, int random)
 		return seed + 1;
 }
 
+#ifdef TRY_RTT_COMBOS
+#define ONEZERO 0xAAAAAAAA
+#define ZEROONE 0x55555555
+
+#ifndef MEMTEST_BUS_SIZE
+#define MEMTEST_BUS_SIZE (512)
+#endif
+
+#define MEMTEST_BUS_DEBUG
+#else
 #define ONEZERO 0xAAAAAAAA
 #define ZEROONE 0x55555555
 
@@ -549,6 +559,7 @@ static unsigned short seed_to_data_16(unsigned short seed, int random)
 #endif
 
 //#define MEMTEST_BUS_DEBUG
+#endif
 
 static int memtest_bus(void)
 {
@@ -668,9 +679,92 @@ static int memtest_addr(void)
 	return errors;
 }
 
+static int lfsr_state = 1;
+static void lfsr_init(int seed) {
+  lfsr_state = seed;
+}
+
+static unsigned int lfsr_next(void)
+{
+  /*
+    config          : galois
+    length          : 32
+    taps            : (32, 25, 17, 7)
+    shift-amount    : 16
+    shift-direction : right
+  */
+  enum {
+    length = 32,
+    tap_0  = 32,
+    tap_1  = 25,
+    tap_2  = 17,
+    tap_3  =  7
+  };
+  int v = lfsr_state;
+  typedef unsigned int T;
+  const T zero = (T)(0);
+  const T lsb = zero + (T)(1);
+  const T feedback = (
+		      (lsb << (tap_0 - 1)) ^
+		      (lsb << (tap_1 - 1)) ^
+		      (lsb << (tap_2 - 1)) ^
+		      (lsb << (tap_3 - 1))
+		      );
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  v = (v >> 1) ^ ((zero - (v & lsb)) & feedback);
+  lfsr_state = v;
+  return v;
+}
+
+
+#define MEM_TEST_START  0x00000000
+#define MEM_TEST_LENGTH (1024 * 1024 * 1)
+
+#define ERR_PRINT_LIMIT 20
+int test_memory(void) {
+  unsigned int i, j;
+  unsigned int *mem = MEM_TEST_START + MAIN_RAM_BASE;
+  unsigned int res = 0;
+  unsigned int val;
+  
+  lfsr_init(0xbabe);
+  for ( j = 0; j < MEM_TEST_LENGTH; j++ ) {
+    mem[j] = lfsr_next();
+  }
+  flush_l2_cache();
+
+  lfsr_init(0xbabe);
+  for( j = 0; j < MEM_TEST_LENGTH; j++ ) {
+    val = lfsr_next();
+    if( mem[j] != val ) {
+      if( res < ERR_PRINT_LIMIT ) {
+	printf( "{\"error\":[{\"syndrome\":{\"addr\":%08x, \"got\":%08x, \"expected\":%08x}}]}\n",
+		&(mem[(1 << i) + j]), mem[(1 << i) + j], val );
+      }
+      res++;
+    }
+  }
+  
+  return(res);
+}
+
 int memtest(void)
 {
-	int bus_errors, data_errors, addr_errors;
+        int bus_errors, data_errors, addr_errors, ext_errors;
 
 	bus_errors = memtest_bus();
 	if(bus_errors != 0)
@@ -684,13 +778,18 @@ int memtest(void)
 	if(addr_errors != 0)
 		printf("Memtest addr failed: %d/%d errors\n", addr_errors, MEMTEST_ADDR_SIZE/4);
 
-	if(bus_errors + data_errors + addr_errors != 0)
+	ext_errors = 0;
+#ifdef TRY_RTT_COMBOS
+	test_memory();
+#endif
+	if(bus_errors + data_errors + addr_errors + ext_errors != 0)
 		return 0;
 	else {
 		printf("Memtest OK\n");
 		return 1;
 	}
 }
+
 
 #ifdef CSR_DDRPHY_BASE
 int sdrlevel(int silent)
@@ -855,6 +954,90 @@ int alt_sdrinit(char *rtt_nom_str, char *rtt_wr_str, char *ron_str) {
 
 	return 1;
 }
+
+static int iter_sdrinit(int rtt_nom, int rtt_wr, int ron) {
+	printf("Initializing SDRAM with parameters...\n");
+
+	printf( "trying rtt_nom %d rtt_wr %d, ron %d\n", rtt_nom, rtt_wr, ron );
+	// 1111 1101 1001 1001 = 0xFD99
+	int mr1 = 0x44 & 0xFD99;
+	// 1111 1001 1111 1111 = 0xF9FF
+	int mr2 = 0x0 & 0xF9FF;
+
+	if( ron == 34 ) {
+	  mr1 |= (1 << 1);
+	}
+	// 40 ohm is 00, and others are reserved
+	
+	if( rtt_nom == 60 ) {
+	  mr1 |= (1 << 2);
+	} else if( rtt_nom == 120 ) {
+	  mr1 |= (1 << 6);
+	} else if( rtt_nom == 40 ) {
+	  mr1 |= (1 << 2);
+	  mr1 |= (1 << 6);
+	} else if( rtt_nom == 20 ) {
+	  mr1 |= (1 << 9);
+	} else if( rtt_nom == 30 ) {
+	  mr1 |= (1 << 9);
+	  mr1 |= (1 << 2);
+	}
+	// else disabled
+
+	if( rtt_wr == 60 ) {
+	  mr2 |= (1 << 9);
+	} else if( rtt_wr == 120 ) {
+	  mr2 |= (1 << 10);
+	}
+	// else off
+
+	printf( "setting mr1: %x, mr2 %x\n", mr1, mr2 );
+	alt_init_sequence(mr1, mr2);
+	
+#if CSR_DDRPHY_EN_VTC_ADDR
+	ddrphy_en_vtc_write(0);
+#endif
+	sdrlevel(1);
+#if CSR_DDRPHY_EN_VTC_ADDR
+	ddrphy_en_vtc_write(1);
+#endif
+	sdrhw();
+	if(!memtest()) {
+		/* show scans */
+		sdrlevel(0);
+		return 0;
+	}
+
+	return 1;
+}
+
+void clear_ram() {
+  int i;
+  unsigned int *mem = MEM_TEST_START + MAIN_RAM_BASE;
+  
+  for( i = 0; i < MEM_TEST_LENGTH; i++ ) {
+    mem[i] = 0;
+  }
+  flush_l2_cache();
+}
+
+void try_combos(void) {
+  int rtt_nom_set[6] = {0, 120, 40, 20, 30, 60};
+  int ron_set[2] = {34, 40};
+  int rtt_wr_set[3] = {120, 0, 0};
+
+  int i, j, k;
+
+  for( i = 0; i < 2; i++ ) {
+    for( j = 0; j < 3; j++ ) {
+      for( k = 0; k < 6; k++ ) {
+	iter_sdrinit( rtt_nom_set[k], rtt_wr_set[j], ron_set[i] );
+	clear_ram();
+      }
+    }
+  }
+}
+
 
 int sdrinit(void)
 {

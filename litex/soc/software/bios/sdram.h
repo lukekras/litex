@@ -27,4 +27,7 @@ int memtest_silent(void);
 int memtest(void);
 int sdrinit(void);
 
+void try_combos(void);
+int alt_sdrinit(char *rtt_nom_str, char *rtt_wr_str, char *ron_str);
+
 #endif /* __SDRAM_H */

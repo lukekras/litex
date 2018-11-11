@@ -408,6 +408,7 @@ static void do_command(char *c)
 	else if(strcmp(token, "memtest") == 0) memtest();
 	else if(strcmp(token, "sdrinit") == 0) sdrinit();
 	else if(strcmp(token, "altsdr") == 0) alt_sdrinit(get_token(&c), get_token(&c), get_token(&c));
+	else if(strcmp(token, "trycombos") == 0) try_combos();
 #endif
 
 	else if(strcmp(token, "") != 0)
@@ -538,6 +539,9 @@ int main(int i, char **c)
 	eth_init();
 #endif
 
+#ifdef TRY_RTT_COMBOS
+	try_combos();
+#else
 	int sdr_retries = 0;
 
 	// in case of transient initialization errors, attempt initialization up to three times
@@ -553,7 +557,7 @@ int main(int i, char **c)
 		boot_sequence();
 	else
 		printf("Memory initialization failed\n");
-
+#endif
 	while(1) {
 		putsnonl("\e[1mBIOS>\e[0m ");
 		readstr(buffer, 64);
