@@ -738,13 +738,11 @@ void memtester86(void);
 #define MEM_TEST_LENGTH (1024 * 1024 * 2)
 
 #define ERR_PRINT_LIMIT 20
-static int test_memory(void) {  // look into porting a more comprehensive tester to this BIOS
+static int test_memory(void) {
   unsigned int j;
   unsigned int *mem = (unsigned int *) (MEM_TEST_START + MAIN_RAM_BASE);
   unsigned int res = 0;
   unsigned int val;
-
-  int lfsr_save = lfsr_state;
 
   printf( "***********WRITE**********\n" );
   lfsr_init(lfsr_state);
@@ -1031,16 +1029,7 @@ static int iter_sdrinit(int rtt_nom, int rtt_wr, int ron) {
 	return 1;
 }
 
-static void clear_ram(void) {
-  int i;
-  unsigned int *mem = (unsigned int *) (MEM_TEST_START + MAIN_RAM_BASE);
-  
-  for( i = 0; i < MEM_TEST_LENGTH; i++ ) {
-    mem[i] = 0;
-  }
-  flush_l2_cache();
-}
-
+#ifdef TRY_RTT_COMBOS
 void try_combos(void) {
   int rtt_nom_set[6] = {0, 120, 40, 20, 30, 60};
   int ron_set[2] = {34, 40};
@@ -1068,7 +1057,7 @@ void try_combos(void) {
   }
   }
 }
-
+#endif
 
 int sdrinit(void)
 {

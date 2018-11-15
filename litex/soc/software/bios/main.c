@@ -408,7 +408,6 @@ static void do_command(char *c)
 	else if(strcmp(token, "memtest") == 0) memtest();
 	else if(strcmp(token, "sdrinit") == 0) sdrinit();
 	else if(strcmp(token, "altsdr") == 0) alt_sdrinit(get_token(&c), get_token(&c), get_token(&c));
-	else if(strcmp(token, "trycombos") == 0) try_combos();
 #endif
 
 	else if(strcmp(token, "") != 0)
