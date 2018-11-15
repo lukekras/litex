@@ -744,12 +744,14 @@ int test_memory(void) {
   unsigned int res = 0;
   unsigned int val;
 
+  int lfsr_stash = lfsr_state;
+
 #ifdef TRY_RTT_COMBOS
   printf( "***********WRITE**********\n" );
 #else
   printf( "*WRITE* " );
 #endif  
-  lfsr_init(lfsr_state);
+  lfsr_init(lfsr_stash);
   for ( j = 0; j < MEM_TEST_LENGTH; j++ ) {
     mem[j] = lfsr_next();
   }
@@ -760,7 +762,7 @@ int test_memory(void) {
 #else
   printf( " -READ-\n" );
 #endif  
-  lfsr_init(lfsr_state);
+  lfsr_init(lfsr_stash);
   for( j = 0; j < MEM_TEST_LENGTH; j++ ) {
     val = lfsr_next();
     if( mem[j] != val ) {
