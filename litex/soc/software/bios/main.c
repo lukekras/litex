@@ -537,7 +537,7 @@ int main(int i, char **c)
 	crcbios();
 	unsigned long temp;
 	temp = (xadc_temperature_read()) * 50398 / 4096 - 27315;
-	printf( "Die temp: %d.%02dC\n", temp / 100, temp - ((temp / 100) * 100);
+	printf( "Die temp: %d.%02dC\n", temp / 100, temp - ((temp / 100) * 100));
 	
 #ifdef CSR_ETHMAC_BASE
 	eth_init();
