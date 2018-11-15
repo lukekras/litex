@@ -738,28 +738,42 @@ void memtester86(void);
 #define MEM_TEST_LENGTH (1024 * 1024 * 2)
 
 #define ERR_PRINT_LIMIT 20
-static int test_memory(void) {
+int test_memory(void) {
   unsigned int j;
   unsigned int *mem = (unsigned int *) (MEM_TEST_START + MAIN_RAM_BASE);
   unsigned int res = 0;
   unsigned int val;
 
+#ifdef TRY_RTT_COMBOS
   printf( "***********WRITE**********\n" );
+#else
+  printf( "*WRITE* " );
+#endif  
   lfsr_init(lfsr_state);
   for ( j = 0; j < MEM_TEST_LENGTH; j++ ) {
     mem[j] = lfsr_next();
   }
   flush_l2_cache();
 
+#ifdef TRY_RTT_COMBOS
   printf( "-----------------READ-----------------\n" );
+#else
+  printf( " -READ-\n" );
+#endif  
   lfsr_init(lfsr_state);
   for( j = 0; j < MEM_TEST_LENGTH; j++ ) {
     val = lfsr_next();
     if( mem[j] != val ) {
+#ifdef TRY_RTT_COMBOS
       if( res < ERR_PRINT_LIMIT ) {
 	printf( "{\"error\":[{\"syndrome\":{\"addr\":%08x, \"got\":%08x, \"expected\":%08x}}]}\n",
 		&(mem[j]), mem[j], val );
       }
+#else
+      if( res < ERR_PRINT_LIMIT / 2 ) {
+	printf( "%08x: %08x\n", &(mem[j]), mem[j] ^ val );
+      }
+#endif
       res++;
     }
   }

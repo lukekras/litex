@@ -549,12 +549,24 @@ int main(int i, char **c)
 
 	// in case of transient initialization errors, attempt initialization up to three times
 	while( (sdr_retries < 3) && !sdr_ok ) {
+	  temp = (xadc_temperature_read()) * 50398 / 4096 - 27315;
+	  printf( "Die temp: %d.%02dC\n", temp / 100, temp - ((temp / 100) * 100));
+	  printf("Pre-cal: "); 
+	  test_memory();
 #ifdef CSR_SDRAM_BASE
 	  sdr_ok = sdrinit();
 #else
 	  sdr_ok = 1;
 #endif
 	  sdr_retries++;
+	  temp = (xadc_temperature_read()) * 50398 / 4096 - 27315;
+	  printf( "Die temp: %d.%02dC\n", temp / 100, temp - ((temp / 100) * 100));
+	  printf("Post-cal: "); 
+	  if( test_memory() ) {
+	    sdr_ok = 0;
+	  }
+	  temp = (xadc_temperature_read()) * 50398 / 4096 - 27315;
+	  printf( "Die temp: %d.%02dC\n", temp / 100, temp - ((temp / 100) * 100));
 	}
 
 #ifdef MEMTEST86
