@@ -535,6 +535,10 @@ int main(int i, char **c)
 	"(c) Copyright 2007-2018 M-Labs Limited\n"
 	"Built "__DATE__" "__TIME__"\n");
 	crcbios();
+	double temp;
+	temp = ((double)xadc_temperature_read()) * 503.975 / 4096.0 - 273.15;
+	printf( "Die temp: %d.%01dC\n", (int) temp, (int) (temp - (double)((int)temp)) * 10 );
+	
 #ifdef CSR_ETHMAC_BASE
 	eth_init();
 #endif
@@ -553,6 +557,13 @@ int main(int i, char **c)
 #endif
 	  sdr_retries++;
 	}
+
+#ifdef MEMTEST86
+	printf("Invoking comprehensive memory test loop (eternal)\n");
+	while(1) { 
+	  memtester86();
+	}
+#endif
 	if(sdr_ok)
 		boot_sequence();
 	else
