@@ -535,9 +535,9 @@ int main(int i, char **c)
 	"(c) Copyright 2007-2018 M-Labs Limited\n"
 	"Built "__DATE__" "__TIME__"\n");
 	crcbios();
-	double temp;
-	temp = ((double)xadc_temperature_read()) * 503.975 / 4096.0 - 273.15;
-	printf( "Die temp: %d.%01dC\n", (int) temp, (int) (temp - (double)((int)temp)) * 10 );
+	unsigned long temp;
+	temp = (xadc_temperature_read()) * 50398 / 4096 - 27315;
+	printf( "Die temp: %d.%02dC\n", temp / 100, temp - ((temp / 100) * 100);
 	
 #ifdef CSR_ETHMAC_BASE
 	eth_init();
