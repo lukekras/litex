@@ -299,7 +299,13 @@ void netboot(void)
    before running, as it is faster.  If we have no SDRAM then we have to
    execute directly out of the SPI flash. */
 #ifdef MAIN_RAM_BASE
+
+#ifdef TEST_XIP
+#define FIRMWARE_BASE_ADDRESS (FLASH_BOOT_ADDRESS + 2 * sizeof(unsigned int)) // run out of flash for XIP
+#else
 #define FIRMWARE_BASE_ADDRESS MAIN_RAM_BASE
+#endif
+
 #else
 /* Firmware code starts after (a) length and (b) CRC -- both unsigned ints */
 #define FIRMWARE_BASE_ADDRESS (FLASH_BOOT_ADDRESS + 2 * sizeof(unsigned int))
@@ -322,8 +328,10 @@ void flashboot(void)
 	}
 
 #ifdef MAIN_RAM_BASE
+#ifndef TEST_XIP
 	printf("Loading %d bytes from flash...\n", length);
 	memcpy((void *)MAIN_RAM_BASE, flashbase, length);
+#endif
 #endif
 
 	got_crc = crc32((unsigned char *)FIRMWARE_BASE_ADDRESS, length);
