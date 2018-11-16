@@ -735,7 +735,7 @@ void memtester86(void);
 #endif
   
 #define MEM_TEST_START  (0x00000000)
-#define MEM_TEST_LENGTH (1024 * 1024 * 2)
+#define MEM_TEST_LENGTH (1024 * 1024 * 1) // was 2MB
 
 #define ERR_PRINT_LIMIT 20
 int test_memory(void) {
@@ -768,8 +768,8 @@ int test_memory(void) {
     if( mem[j] != val ) {
 #ifdef TRY_RTT_COMBOS
       if( res < ERR_PRINT_LIMIT ) {
-	printf( "{\"error\":[{\"syndrome\":{\"addr\":%08x, \"got\":%08x, \"expected\":%08x}}]}\n",
-		&(mem[j]), mem[j], val );
+	printf( "{\"error\":[{\"syndrome\":{\"addr\":%08x, \"got\":%08x, \"expected\":%08x, \"XOR\":%08x}}]}\n",
+		&(mem[j]), mem[j], val, mem[j] ^ val );
       }
 #else
       if( res < ERR_PRINT_LIMIT / 2 ) {
