@@ -538,6 +538,11 @@ int main(int i, char **c)
 #ifdef CSR_ETHMAC_BASE
 	eth_init();
 #endif
+
+	unsigned long temp;
+	temp = (xadc_temperature_read()) * 50398 / 4096 - 27315;
+	printf( "Die temp: %d.%02dC\n", temp / 100, temp - ((temp / 100) * 100));
+	
 #ifdef CSR_SDRAM_BASE
 	sdr_ok = sdrinit();
 #else
