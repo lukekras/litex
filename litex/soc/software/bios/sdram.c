@@ -652,6 +652,32 @@ static int memtest_addr(void)
 	return errors;
 }
 
+#ifdef BOOT_MEMTEST
+int verify_memtest(void) {
+	volatile unsigned int *array = (unsigned int *)MAIN_RAM_BASE;
+	int i, errors;
+	unsigned int seed_32;
+	unsigned int rdata;
+
+	errors = 0;
+	seed_32 = 0;
+	flush_cpu_dcache();
+	flush_l2_cache();
+	for(i=0;i<MEMTEST_DATA_SIZE/4;i++) {
+		seed_32 = seed_to_data_32(seed_32, MEMTEST_DATA_RANDOM);
+		rdata = array[i];
+		if(rdata != seed_32) {
+			errors++;
+			if( errors < 40 ) {
+			  printf("[data 0x%0x]: (got)0x%08x vs (want)0x%08x\n", i, rdata, seed_32);
+			}
+		}
+	}
+
+	return errors;
+}
+#endif
+
 int memtest(void)
 {
 	int bus_errors, data_errors, addr_errors;
@@ -660,16 +686,17 @@ int memtest(void)
 	if(bus_errors != 0)
 		printf("Memtest bus failed: %d/%d errors\n", bus_errors, 2*128);
 
-	data_errors = memtest_data();
-	if(data_errors != 0)
-		printf("Memtest data failed: %d/%d errors\n", data_errors, MEMTEST_DATA_SIZE/4);
-
 	addr_errors = memtest_addr();
 	if(addr_errors != 0)
 		printf("Memtest addr failed: %d/%d errors\n", addr_errors, MEMTEST_ADDR_SIZE/4);
 
+	data_errors = memtest_data();
+	if(data_errors != 0)
+		printf("Memtest data failed: %d/%d errors\n", data_errors, MEMTEST_DATA_SIZE/4);
+
 	if(bus_errors + data_errors + addr_errors != 0)
 		return 0;
+
 	else {
 		printf("Memtest OK\n");
 		return 1;
@@ -756,4 +783,218 @@ int sdrinit(void)
 	return 1;
 }
 
+#endif
+
+// 0x9041 1001 0000 0100 0001
+// CRG MMCM
+#define MTE 46  // MCM table entries
+static int crg_mmcm[46] = {0x28, 0xffff, 0x9, 0x0, 0x8, 0x1041, 0xa, 0x82, 0xb, 0x0, 0xc, 0x9041, 0xd, 0x0, 0xe, 0x41, 0xf, 0x40, 0x10, 0x1208, 0x11, 0x0, 0x6, 0x1104, 0x7, 0x0, 0x12, 0x41, 0x13, 0x40, 0x16, 0x1041, 0x14, 0x1208, 0x15, 0x0, 0x18, 0x271, 0x19, 0x7c01, 0x1a, 0xffe9, 0x4e, 0x9908, 0x4f, 0x8100};
+
+#define MMCM_TIMEOUT 1000000
+
+#ifdef CSR_CRG_BASE
+static void crg_mmcm_write(int adr, int data) {
+  int timeout = 0;
+	crg_mmcm_adr_write(adr);
+	crg_mmcm_dat_w_write(data);
+	crg_mmcm_write_write(1);
+	while(!crg_mmcm_drdy_read() && timeout < MMCM_TIMEOUT)
+	  timeout++;
+	if( timeout >= MMCM_TIMEOUT ) {
+	  printf("crg_mmcm_write failed with adr %x, data %x\n", adr, data);
+	}
+}
+
+static int crg_mmcm_read(int adr) {
+  int timeout = 0;
+	crg_mmcm_adr_write(adr);
+	crg_mmcm_read_write(1);
+	while(!crg_mmcm_drdy_read() && timeout < MMCM_TIMEOUT)
+	  timeout++;
+	if( timeout >= MMCM_TIMEOUT ) {
+	  printf("crg_mmcm_read failed with adr %x\n", adr);
+	}
+
+	return crg_mmcm_dat_r_read();
+}
+#endif
+
+void config_crg(int phase, int style) {
+  int i;
+  int val;
+  if( style == 0 ) {
+    for( i = 0; i < MTE; i += 2 ) {
+      if( crg_mmcm[i] == 0xc ) {
+	val = (crg_mmcm[i+1] & 0x1FFF) | ((phase & 0x7) << 13);
+	printf( " ===========> 0xc entry: %04x\n", val );
+	crg_mmcm_write(crg_mmcm[i], val );
+      } else {
+	crg_mmcm_write(crg_mmcm[i], crg_mmcm[i+1]);
+      }
+    }
+  } else {
+    val = 0x1041 | ((phase & 0x7) << 13);
+    printf( " ===========> 0xc entry: %04x\n", val );
+    crg_mmcm_write(0xc, val );
+  }
+}
+
+#define S7_MMCM_MAP_LEN  23
+// map order comes from xapp888 -- no explanation in docs for why the order is necessary, but it seems important
+static int addr_map[S7_MMCM_MAP_LEN] = {0x28, 0x9, 0x8, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0x10, 0x11, 0x6, 0x7,
+					0x12, 0x13, 0x16, 0x14, 0x15, 0x18, 0x19, 0x1a, 0x4e, 0x4f};
+
+void mmcm_dump_code(void) {
+  int i;
+
+#ifdef CSR_CRG_BASE
+  printf( "// CRG MMCM\n" );
+  printf( "int crg_mmcm[%d] = {", S7_MMCM_MAP_LEN * 2 );
+  for( i = 0; i < S7_MMCM_MAP_LEN; i++ ) {
+    if( addr_map[i] == 0x28 )  // this state substitutes to all 1's for DRP to work
+      printf( "0x28, 0xffff" );
+    else
+      printf( "0x%x, 0x%x", addr_map[i], crg_mmcm_read(addr_map[i]) );
+    if( i < S7_MMCM_MAP_LEN - 1 )
+      printf( ", " );
+  }
+  printf( "};\n" );
+#endif
+}
+
+void sdr_scanphase(void) {
+  int i;
+  
+  for( i = 0; i < 8; i++ ) {
+    config_crg(i, 0);
+    sdrsw();
+    sdrinit();
+  }
+
+  config_crg(4, 0); // restore default setting
+}
+
+#ifdef BOOT_MEMTEST	
+static void alt_init_sequence(int mr1, int mr2) {
+	printf( "setting mr1: %x, mr2 %x\n", mr1, mr2 );
+	
+	/* Force reset */
+	sdram_dfii_pi0_address_write(0x0);
+	sdram_dfii_pi0_baddress_write(0);
+	sdram_dfii_control_write(DFII_CONTROL_ODT);
+	cdelay(50000);
+
+	/* Release reset */
+	sdram_dfii_pi0_address_write(0x0);
+	sdram_dfii_pi0_baddress_write(0);
+	sdram_dfii_control_write(DFII_CONTROL_ODT|DFII_CONTROL_RESET_N);
+	cdelay(50000);
+
+	/* Bring CKE high */
+	sdram_dfii_pi0_address_write(0x0);
+	sdram_dfii_pi0_baddress_write(0);
+	sdram_dfii_control_write(DFII_CONTROL_CKE|DFII_CONTROL_ODT|DFII_CONTROL_RESET_N);
+	cdelay(10000);
+
+	/* Load Mode Register 2, CWL=5 */
+	sdram_dfii_pi0_address_write(mr2);
+	sdram_dfii_pi0_baddress_write(2);
+	command_p0(DFII_COMMAND_RAS|DFII_COMMAND_CAS|DFII_COMMAND_WE|DFII_COMMAND_CS);
+
+	/* Load Mode Register 3 */
+	sdram_dfii_pi0_address_write(0x0);
+	sdram_dfii_pi0_baddress_write(3);
+	command_p0(DFII_COMMAND_RAS|DFII_COMMAND_CAS|DFII_COMMAND_WE|DFII_COMMAND_CS);
+
+	/* Load Mode Register 1 */
+	sdram_dfii_pi0_address_write(mr1);
+	sdram_dfii_pi0_baddress_write(1);
+	command_p0(DFII_COMMAND_RAS|DFII_COMMAND_CAS|DFII_COMMAND_WE|DFII_COMMAND_CS);
+
+	/* Load Mode Register 0, CL=6, BL=8 */
+	sdram_dfii_pi0_address_write(0xd20);
+	sdram_dfii_pi0_baddress_write(0);
+	command_p0(DFII_COMMAND_RAS|DFII_COMMAND_CAS|DFII_COMMAND_WE|DFII_COMMAND_CS);
+	cdelay(200);
+
+	/* ZQ Calibration */
+	sdram_dfii_pi0_address_write(0x400);
+	sdram_dfii_pi0_baddress_write(0);
+	command_p0(DFII_COMMAND_WE|DFII_COMMAND_CS);
+	cdelay(200);
+}
+
+static int iter_sdrinit(int rtt_nom, int rtt_wr, int ron) {
+	sdrsw();
+	
+	printf( "\n\n###################################\n  trying rtt_nom %d rtt_wr %d, ron %d\n", rtt_nom, rtt_wr, ron );
+	// 1111 1101 1001 1001 = 0xFD99
+	int mr1 = 0x44 & 0xFD99;
+	// 1111 1001 1111 1111 = 0xF9FF
+	int mr2 = 0x0 & 0xF9FF;
+
+	if( ron == 34 ) {
+	  mr1 |= (1 << 1);
+	}
+	// 40 ohm is 00, and others are reserved
+	
+	if( rtt_nom == 60 ) {
+	  mr1 |= (1 << 2);
+	} else if( rtt_nom == 120 ) {
+	  mr1 |= (1 << 6);
+	} else if( rtt_nom == 40 ) {
+	  mr1 |= (1 << 2);
+	  mr1 |= (1 << 6);
+	} else if( rtt_nom == 20 ) {
+	  mr1 |= (1 << 9);
+	} else if( rtt_nom == 30 ) {
+	  mr1 |= (1 << 9);
+	  mr1 |= (1 << 2);
+	}
+	// else disabled
+
+	if( rtt_wr == 60 ) {
+	  mr2 |= (1 << 9);
+	} else if( rtt_wr == 120 ) {
+	  mr2 |= (1 << 10);
+	}
+	// else off
+
+	alt_init_sequence(mr1, mr2);
+
+#ifdef CSR_DDRPHY_BASE
+#if CSR_DDRPHY_EN_VTC_ADDR
+	ddrphy_en_vtc_write(0);
+#endif
+	sdrlevel();
+#if CSR_DDRPHY_EN_VTC_ADDR
+	ddrphy_en_vtc_write(1);
+#endif
+#endif
+	sdrhw();
+	if(!memtest()) {
+		return 0;
+	}
+
+	return 1;
+}
+
+void try_combos(void) {
+  int rtt_nom_set[6] = {0, 120, 20, 40, 60, 30};
+  int ron_set[2] = {34, 40};
+  int rtt_wr_set[3] = {120, 60, 0};
+
+  int i, j, k;
+  unsigned long temp;
+
+  while(1) {
+    for( k = 0; k < 6; k++ ) {
+      //      for( i = 0; i < 2; i++ ) {
+	temp = (xadc_temperature_read()) * 50398 / 4096 - 27315;
+	printf( "Die temp: %d.%02dC\n", temp / 100, temp - ((temp / 100) * 100));
+	iter_sdrinit( rtt_nom_set[k], 0, ron_set[1] );
+	//      }
+    }
+  }
+}
 #endif

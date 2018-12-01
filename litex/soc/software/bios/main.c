@@ -408,7 +408,18 @@ static void do_command(char *c)
 	else if(strcmp(token, "memtest") == 0) memtest();
 	else if(strcmp(token, "sdrinit") == 0) sdrinit();
 #endif
-
+#ifdef BOOT_MEMTEST	
+	else if(strcmp(token, "verify") == 0) verify_memtest();
+	else if(strcmp(token, "phase0") == 0) {
+	  int phase = strtoul(get_token(&c), NULL, 0);
+	  config_crg( phase, 0 );
+	}
+	else if(strcmp(token, "phase1") == 0) {
+	  int phase = strtoul(get_token(&c), NULL, 0);
+	  config_crg( phase, 1 );
+	}
+	else if(strcmp(token, "tc") == 0) try_combos();
+#endif
 	else if(strcmp(token, "") != 0)
 		printf("Command not found\n");
 }
@@ -542,12 +553,18 @@ int main(int i, char **c)
 	unsigned long temp;
 	temp = (xadc_temperature_read()) * 50398 / 4096 - 27315;
 	printf( "Die temp: %d.%02dC\n", temp / 100, temp - ((temp / 100) * 100));
+
+#ifdef SCAN_PHASE
+	sdr_scanphase();
+#endif
 	
 #ifdef CSR_SDRAM_BASE
 	sdr_ok = sdrinit();
 #else
 	sdr_ok = 1;
 #endif
+	mmcm_dump_code();
+	
 	if(sdr_ok)
 		boot_sequence();
 	else
