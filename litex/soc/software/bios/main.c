@@ -403,13 +403,23 @@ static void do_command(char *c)
 	else if(strcmp(token, "sdrwlon") == 0) sdrwlon();
 	else if(strcmp(token, "sdrwloff") == 0) sdrwloff();
 #endif
-	else if(strcmp(token, "sdrlevel") == 0) sdrlevel(0);
+	else if(strcmp(token, "sdrlevel") == 0) sdrlevel();
 #endif
 	else if(strcmp(token, "memtest") == 0) memtest();
 	else if(strcmp(token, "sdrinit") == 0) sdrinit();
-	else if(strcmp(token, "altsdr") == 0) alt_sdrinit(get_token(&c), get_token(&c), get_token(&c));
 #endif
-
+#ifdef BOOT_MEMTEST	
+	else if(strcmp(token, "verify") == 0) verify_memtest();
+	else if(strcmp(token, "phase0") == 0) {
+	  int phase = strtoul(get_token(&c), NULL, 0);
+	  config_crg( phase, 0 );
+	}
+	else if(strcmp(token, "phase1") == 0) {
+	  int phase = strtoul(get_token(&c), NULL, 0);
+	  config_crg( phase, 1 );
+	}
+	else if(strcmp(token, "tc") == 0) try_combos();
+#endif
 	else if(strcmp(token, "") != 0)
 		printf("Command not found\n");
 }
@@ -443,6 +453,7 @@ static void crcbios(void)
 
 static void readstr(char *s, int size)
 {
+	static char skip = 0;
 	char c[2];
 	int ptr;
 
@@ -450,6 +461,9 @@ static void readstr(char *s, int size)
 	ptr = 0;
 	while(1) {
 		c[0] = readchar();
+		if (c[0] == skip)
+			continue;
+		skip = 0;
 		switch(c[0]) {
 			case 0x7f:
 			case 0x08:
@@ -461,7 +475,12 @@ static void readstr(char *s, int size)
 			case 0x07:
 				break;
 			case '\r':
+				skip = '\n';
+				s[ptr] = 0x00;
+				putsnonl("\n");
+				return;
 			case '\n':
+				skip = '\r';
 				s[ptr] = 0x00;
 				putsnonl("\n");
 				return;
@@ -476,10 +495,7 @@ static void readstr(char *s, int size)
 
 static void boot_sequence(void)
 {
-  int boot_retries = 0;
-
 	if(serialboot()) {
-	  while( boot_retries < 30 ) {  // try pretty hard because each try is quick...
 #ifdef FLASH_BOOT_ADDRESS
 		flashboot();
 #endif
@@ -492,18 +508,14 @@ static void boot_sequence(void)
 #endif
 		netboot();
 #endif
-		// re-init SDR in case boot failure is due to a bad timing lock
-		sdrinit();
-		boot_retries++;
-	  }
-	  printf("No boot medium found\n");
+		printf("No boot medium found\n");
 	}
 }
 
 int main(int i, char **c)
 {
 	char buffer[64];
-	int sdr_ok = 0;
+	int sdr_ok;
 
 	irq_setmask(0);
 	irq_setie(1);
@@ -517,7 +529,7 @@ int main(int i, char **c)
 #ifdef __lm32__
 	printf("LM32");
 #elif __or1k__
-	printf("MOR1K");
+	printf("MOR1KX");
 #elif __picorv32__
 	printf("PicoRV32");
 #elif __vexriscv__
@@ -534,54 +546,30 @@ int main(int i, char **c)
 	"(c) Copyright 2007-2018 M-Labs Limited\n"
 	"Built "__DATE__" "__TIME__"\n");
 	crcbios();
-	unsigned long temp;
-	temp = (xadc_temperature_read()) * 50398 / 4096 - 27315;
-	printf( "Die temp: %d.%02dC\n", temp / 100, temp - ((temp / 100) * 100));
-	
 #ifdef CSR_ETHMAC_BASE
 	eth_init();
 #endif
 
-#ifdef TRY_RTT_COMBOS
-	try_combos();
-#else
-	int sdr_retries = 0;
+	unsigned long temp;
+	temp = (xadc_temperature_read()) * 50398 / 4096 - 27315;
+	printf( "Die temp: %d.%02dC\n", temp / 100, temp - ((temp / 100) * 100));
 
-	// in case of transient initialization errors, attempt initialization up to three times
-	while( (sdr_retries < 3) && !sdr_ok ) {
-	  temp = (xadc_temperature_read()) * 50398 / 4096 - 27315;
-	  printf( "Die temp: %d.%02dC\n", temp / 100, temp - ((temp / 100) * 100));
-	  printf("Pre-cal: "); 
-	  test_memory();
-	  
+#ifdef SCAN_PHASE
+	sdr_scanphase();
+#endif
+	
 #ifdef CSR_SDRAM_BASE
-	  sdr_ok = sdrinit();
+	sdr_ok = sdrinit();
 #else
-	  sdr_ok = 1;
+	sdr_ok = 1;
 #endif
-	  sdr_retries++;
-	  temp = (xadc_temperature_read()) * 50398 / 4096 - 27315;
-	  printf( "Die temp: %d.%02dC\n", temp / 100, temp - ((temp / 100) * 100));
-	  printf("Post-cal: ");
-	  
-	  if( test_memory() ) {
-	    sdr_ok = 0;
-	  }
-	  temp = (xadc_temperature_read()) * 50398 / 4096 - 27315;
-	  printf( "Die temp: %d.%02dC\n", temp / 100, temp - ((temp / 100) * 100));
-	}
-
-#ifdef MEMTEST86
-	printf("Invoking comprehensive memory test loop (eternal)\n");
-	while(1) { 
-	  memtester86();
-	}
-#endif
+	mmcm_dump_code();
+	
 	if(sdr_ok)
 		boot_sequence();
 	else
 		printf("Memory initialization failed\n");
-#endif
+
 	while(1) {
 		putsnonl("\e[1mBIOS>\e[0m ");
 		readstr(buffer, 64);

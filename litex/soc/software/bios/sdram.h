@@ -20,16 +20,19 @@ int write_level(void);
 #ifdef CSR_DDRPHY_BASE
 void sdrwlon(void);
 void sdrwloff(void);
-int sdrlevel(int silent);
+int sdrlevel(void);
 #endif
 
 int memtest_silent(void);
 int memtest(void);
 int sdrinit(void);
 
-void try_combos(void);
-int alt_sdrinit(char *rtt_nom_str, char *rtt_wr_str, char *ron_str);
-void memtester86(void);
-int test_memory(void);
+void sdr_scanphase(void);
+void mmcm_dump_code(void);
+void config_crg(int phase, int style);
 
+#ifdef BOOT_MEMTEST
+int verify_memtest(void);
+void try_combos(void);
+#endif
 #endif /* __SDRAM_H */
