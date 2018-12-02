@@ -5,8 +5,8 @@ from litex.soc.interconnect import wishbone
 from litex.soc.interconnect.csr import AutoCSR
 from litex.soc.integration.soc_core import *
 
-from litedram.frontend import crossbar
-from litedram.frontend.wishbone import LiteDRAMWishbone2Native
+from litedram.frontend.wishbone import *
+from litedram.frontend.axi import *
 from litedram import dfii, core
 
 
@@ -27,7 +27,7 @@ class ControllerInjector(Module, AutoCSR):
             phy.settings, geom_settings, timing_settings, **kwargs)
         self.comb += controller.dfi.connect(self.dfii.slave)
 
-        self.submodules.crossbar = crossbar.LiteDRAMCrossbar(controller.interface, controller.nrowbits)
+        self.submodules.crossbar = core.LiteDRAMCrossbar(controller.interface)
 
 
 class SoCSDRAM(SoCCore):
@@ -52,7 +52,7 @@ class SoCSDRAM(SoCCore):
             raise FinalizeError
         self._wb_sdram_ifs.append(interface)
 
-    def register_sdram(self, phy, geom_settings, timing_settings, **kwargs):
+    def register_sdram(self, phy, geom_settings, timing_settings, use_axi=False, **kwargs):
         assert not self._sdram_phy
         self._sdram_phy.append(phy)  # encapsulate in list to prevent CSR scanning
 
@@ -85,7 +85,15 @@ class SoCSDRAM(SoCCore):
                 self.submodules.l2_cache = FullMemoryWE()(l2_cache)
             else:
                 self.submodules.l2_cache = l2_cache
-            self.submodules.wishbone_bridge = LiteDRAMWishbone2Native(self.l2_cache.slave, port)
+            if use_axi:
+                axi_port = LiteDRAMAXIPort(
+                    port.data_width,
+                    port.address_width + log2_int(port.data_width//8))
+                axi2native = LiteDRAMAXI2Native(axi_port, port)
+                self.submodules += axi2native
+                self.submodules.wishbone_bridge = LiteDRAMWishbone2AXI(self.l2_cache.slave, axi_port)
+            else:
+                self.submodules.wishbone_bridge = LiteDRAMWishbone2Native(self.l2_cache.slave, port)
 
     def do_finalize(self):
         if not self.integrated_main_ram_size:

@@ -10,8 +10,6 @@ class MOR1KX(Module):
     endianness = "big"
     gcc_triple = "or1k-elf"
     gcc_flags = "-mhard-mul -mhard-div -mror"
-    clang_triple = "or1k-linux"
-    clang_flags = "-mhard-mul -mhard-div -mror -mffl1 -maddc"
     linker_output_format = "elf32-or1k"
 
     def __init__(self, platform, reset_pc, variant=None):
@@ -53,6 +51,8 @@ class MOR1KX(Module):
             # Use the default configuration
             pass
         elif variant == "linux":
+            self.clang_triple = "or1k-linux"
+            self.clang_flags = "-mhard-mul -mhard-div -mror -mffl1 -maddc"
             cpu_args.update(dict(
                 # Linux needs the memory management units.
                 p_FEATURE_IMMU="ENABLED",
@@ -122,3 +122,4 @@ class MOR1KX(Module):
             os.path.abspath(os.path.dirname(__file__)),
             "verilog", "rtl", "verilog")
         platform.add_source_dir(vdir)
+        platform.add_verilog_include_path(vdir)

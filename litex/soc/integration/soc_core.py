@@ -10,7 +10,14 @@ from litex.soc.interconnect.csr import *
 from litex.soc.interconnect import wishbone, csr_bus, wishbone2csr
 
 
-__all__ = ["mem_decoder", "get_mem_data", "SoCCore", "soc_core_args", "soc_core_argdict"]
+__all__ = [
+    "mem_decoder",
+    "get_mem_data",
+    "csr_map_update",
+    "SoCCore",
+    "soc_core_args",
+    "soc_core_argdict"
+]
 
 
 def version(with_time=True):
@@ -59,6 +66,11 @@ class ReadOnlyDict(dict):
     update = __readonly__
     setdefault = __readonly__
     del __readonly__
+
+
+def csr_map_update(csr_map, csr_peripherals):
+    csr_map.update(dict((n, v)
+        for v, n in enumerate(csr_peripherals, start=max(csr_map.values()) + 1)))
 
 
 class SoCController(Module, AutoCSR):
@@ -124,6 +136,8 @@ class SoCCore(Module):
         self.platform = platform
         self.clk_freq = clk_freq
 
+        if cpu_type == "None":
+            cpu_type = None
         self.cpu_type = cpu_type
         self.cpu_variant = cpu_variant
         if integrated_rom_size:
@@ -375,14 +389,15 @@ class SoCCore(Module):
                 self._constants.append(("CONFIG_" + name.upper(), value))
 
             # Interrupts
-            if hasattr(self.cpu, "interrupt"):
-                for interrupt, mod_name in sorted(self.interrupt_rmap.items()):
-                    if mod_name == "nmi":
-                        continue
-                    if hasattr(self, mod_name):
-                        mod_impl = getattr(self, mod_name)
-                        assert hasattr(mod_impl, 'ev'), "Submodule %s does not have EventManager (xx.ev) module" % mod_name
-                        self.comb += self.cpu.interrupt[interrupt].eq(mod_impl.ev.irq)
+            if hasattr(self, "cpu"):
+                if hasattr(self.cpu, "interrupt"):
+                    for interrupt, mod_name in sorted(self.interrupt_rmap.items()):
+                        if mod_name == "nmi":
+                            continue
+                        if hasattr(self, mod_name):
+                            mod_impl = getattr(self, mod_name)
+                            assert hasattr(mod_impl, 'ev'), "Submodule %s does not have EventManager (xx.ev) module" % mod_name
+                            self.comb += self.cpu.interrupt[interrupt].eq(mod_impl.ev.irq)
 
     def build(self, *args, **kwargs):
         return self.platform.build(self, *args, **kwargs)

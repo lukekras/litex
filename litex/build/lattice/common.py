@@ -1,10 +1,11 @@
 from migen.fhdl.module import Module
-from migen.fhdl.specials import Instance
+from migen.fhdl.specials import Instance, Tristate
+from migen.fhdl.bitcontainer import value_bits_sign
 from migen.genlib.io import *
 from migen.genlib.resetsync import AsyncResetSynchronizer
 
 
-class DiamondAsyncResetSynchronizerImpl(Module):
+class LatticeECPXAsyncResetSynchronizerImpl(Module):
     def __init__(self, cd, async_reset):
         rst1 = Signal()
         self.specials += [
@@ -15,13 +16,13 @@ class DiamondAsyncResetSynchronizerImpl(Module):
         ]
 
 
-class DiamondAsyncResetSynchronizer:
+class LatticeECPXAsyncResetSynchronizer:
     @staticmethod
     def lower(dr):
-        return DiamondAsyncResetSynchronizerImpl(dr.cd, dr.async_reset)
+        return LatticeECPXAsyncResetSynchronizerImpl(dr.cd, dr.async_reset)
 
 
-class DiamondDDROutputImpl(Module):
+class LatticeECPXDDROutputImpl(Module):
     def __init__(self, i1, i2, o, clk):
         self.specials += Instance("ODDRXD1",
                                   synthesis_directive="ODDRAPPS=\"SCLK_ALIGNED\"",
@@ -29,18 +30,43 @@ class DiamondDDROutputImpl(Module):
                                   i_DA=i1, i_DB=i2, o_Q=o)
 
 
-class DiamondDDROutput:
+class LatticeECPXDDROutput:
     @staticmethod
     def lower(dr):
-        return DiamondDDROutputImpl(dr.i1, dr.i2, dr.o, dr.clk)
+        return LatticeECPXDDROutputImpl(dr.i1, dr.i2, dr.o, dr.clk)
 
-diamond_special_overrides = {
-    AsyncResetSynchronizer: DiamondAsyncResetSynchronizer,
-    DDROutput: DiamondDDROutput
+lattice_ecpx_special_overrides = {
+    AsyncResetSynchronizer: LatticeECPXAsyncResetSynchronizer,
+    DDROutput: LatticeECPXDDROutput
 }
 
 
-class IcestormAsyncResetSynchronizerImpl(Module):
+class LatticeECPXTrellisTristateImpl(Module):
+    def __init__(self, io, o, oe, i):
+        nbits, sign = value_bits_sign(io)
+        for bit in range(nbits):
+            self.specials += \
+                Instance("TRELLIS_IO",
+                    p_DIR="BIDIR",
+                    i_B=io[bit],
+                    i_I=o[bit],
+                    o_O=i[bit],
+                    i_T=~oe,
+                )
+
+class LatticeECPXTrellisTristate(Module):
+    @staticmethod
+    def lower(dr):
+        return LatticeECPXTrellisTristateImpl(dr.target, dr.o, dr.oe, dr.i)
+
+lattice_ecpx_trellis_special_overrides = {
+    AsyncResetSynchronizer: LatticeECPXAsyncResetSynchronizer,
+    Tristate:               LatticeECPXTrellisTristate,
+    DDROutput:              LatticeECPXDDROutput
+}
+
+
+class LatticeiCE40AsyncResetSynchronizerImpl(Module):
     def __init__(self, cd, async_reset):
         rst1 = Signal()
         self.specials += [
@@ -51,13 +77,33 @@ class IcestormAsyncResetSynchronizerImpl(Module):
         ]
 
 
-class IcestormAsyncResetSynchronizer:
+class LatticeiCE40AsyncResetSynchronizer:
     @staticmethod
     def lower(dr):
-        return IcestormAsyncResetSynchronizerImpl(dr.cd, dr.async_reset)
+        return LatticeiCE40AsyncResetSynchronizerImpl(dr.cd, dr.async_reset)
 
 
-class IcestormDifferentialOutputImpl(Module):
+class LatticeiCE40TristateImpl(Module):
+    def __init__(self, io, o, oe, i):
+        nbits, sign = value_bits_sign(io)
+        for bit in range(nbits):
+            self.specials += \
+                Instance("SB_IO",
+                    p_PIN_TYPE=C(0b101001, 6),
+                    io_PACKAGE_PIN=io[bit],
+                    i_OUTPUT_ENABLE=oe,
+                    i_D_OUT_0=o[bit],
+                    o_D_IN_0=i[bit],
+                )
+
+
+class LatticeiCE40Tristate(Module):
+    @staticmethod
+    def lower(dr):
+        return LatticeiCE40TristateImpl(dr.target, dr.o, dr.oe, dr.i)
+
+
+class LatticeiCE40DifferentialOutputImpl(Module):
     def __init__(self, i, o_p, o_n):
         self.specials += Instance("SB_IO",
                                   p_PIN_TYPE=C(0b011000, 6),
@@ -72,12 +118,13 @@ class IcestormDifferentialOutputImpl(Module):
                                   i_D_OUT_0=~i)
 
 
-class IcestormDifferentialOutput:
+class LatticeiCE40DifferentialOutput:
     @staticmethod
     def lower(dr):
-        return IcestormDifferentialOutputImpl(dr.i, dr.o_p, dr.o_n)
+        return LatticeiCE40DifferentialOutputImpl(dr.i, dr.o_p, dr.o_n)
 
-icestorm_special_overrides = {
-    AsyncResetSynchronizer: IcestormAsyncResetSynchronizer,
-    DifferentialOutput:     IcestormDifferentialOutput
+lattice_ice40_special_overrides = {
+    AsyncResetSynchronizer: LatticeiCE40AsyncResetSynchronizer,
+    Tristate:               LatticeiCE40Tristate,
+    DifferentialOutput:     LatticeiCE40DifferentialOutput
 }

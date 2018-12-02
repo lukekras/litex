@@ -1,24 +1,19 @@
 from litex.build.generic_platform import GenericPlatform
-from litex.build.lattice import common, diamond, icestorm, trellis
+from litex.build.microsemi import common, libero_soc
 
 
-class LatticePlatform(GenericPlatform):
+class MicrosemiPlatform(GenericPlatform):
     bitstream_ext = ".bit"
 
-    def __init__(self, *args, toolchain="diamond", **kwargs):
+    def __init__(self, *args, toolchain="libero_soc_polarfire", **kwargs):
         GenericPlatform.__init__(self, *args, **kwargs)
-        if toolchain == "diamond":
-            self.toolchain = diamond.LatticeDiamondToolchain()
-        elif toolchain == "trellis":
-            self.toolchain = trellis.LatticeTrellisToolchain()
-        elif toolchain == "icestorm":
-            self.bitstream_ext = ".bin"
-            self.toolchain = icestorm.LatticeIceStormToolchain()
+        if toolchain == "libero_soc_polarfire":
+            self.toolchain = libero_soc.MicrosemiLiberoSoCPolarfireToolchain()
         else:
             raise ValueError("Unknown toolchain")
 
     def get_verilog(self, *args, special_overrides=dict(), **kwargs):
-        so = dict()  # No common overrides between ECP and ice40.
+        so = dict()
         so.update(self.toolchain.special_overrides)
         so.update(special_overrides)
         return GenericPlatform.get_verilog(self, *args, special_overrides=so,
@@ -32,3 +27,10 @@ class LatticePlatform(GenericPlatform):
         if hasattr(clk, "p"):
             clk = clk.p
         self.toolchain.add_period_constraint(self, clk, period)
+
+    def add_false_path_constraint(self, from_, to):
+        if hasattr(from_, "p"):
+            from_ = from_.p
+        if hasattr(to, "p"):
+            to = to.p
+        self.toolchain.add_false_path_constraint(self, from_, to)
