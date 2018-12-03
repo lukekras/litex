@@ -563,7 +563,7 @@ int main(int i, char **c)
 #else
 	sdr_ok = 1;
 #endif
-	mmcm_dump_code();
+	// mmcm_dump_code();
 	
 	if(sdr_ok)
 		boot_sequence();
